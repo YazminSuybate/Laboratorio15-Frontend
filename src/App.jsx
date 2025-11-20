@@ -5,6 +5,7 @@ function App() {
   // --- ESTADOS ---
   const [productos, setProductos] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
   const [form, setForm] = useState({
     id: null,
@@ -18,22 +19,35 @@ function App() {
   // --- FUNCIONES ---
 
   // 1. GET: Obtener productos
-  const fetchProductos = async () => {
+  const fetchProductos = async (useCache = false) => {
     setLoading(true);
+    setError(null);
+    if (useCache) {
+      const cachedData = loadFromCache();
+      if (cachedData.length > 0) {
+        setProductos(cachedData);
+      }
+    }
+
     try {
       const response = await fetch(`${API_URL}/productos`);
+      if (!response.ok) throw new Error("Error en la respuesta del servidor");
+
       const data = await response.json();
       setProductos(data);
+      saveToCache(data);
     } catch (error) {
       console.error("Error al cargar productos:", error);
-      alert("Error conectando con el servidor");
+      if (productos.length === 0) {
+        setError("No se pudo conectar con el servidor. Verifica tu conexión.");
+      }
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchProductos();
+    fetchProductos(true);
   }, []);
 
   const handleChange = (e) => {
@@ -64,6 +78,7 @@ function App() {
       if (response.ok) {
         alert(form.id ? "Producto actualizado" : "Producto creado");
         setForm({ id: null, nombre: '', precio: '', stock: '' });
+        fetchProductos();
       } else {
         alert("Error al guardar");
       }
@@ -98,10 +113,23 @@ function App() {
     });
   };
 
+
+  // --- RETO 4: CACHEO LIGERO ---
+  const saveToCache = (data) => {
+    localStorage.setItem('productos_cache', JSON.stringify(data));
+  };
+
+  const loadFromCache = () => {
+    const cached = localStorage.getItem('productos_cache');
+    return cached ? JSON.parse(cached) : [];
+  };
+
   // --- VISTA (HTML) ---
   return (
     <div style={{ padding: '2rem', fontFamily: 'Arial, sans-serif' }}>
       <h1>Gestión de Inventario (Lab 15)</h1>
+
+      {error && <div className="error-msg">{error}</div>}
 
       {/* Formulario */}
       <div style={{ background: '#f4f4f4', padding: '1rem', borderRadius: '8px', marginBottom: '2rem' }}>
@@ -144,39 +172,37 @@ function App() {
       </div>
 
       {/* Listado */}
-      {loading ? (
-        <p>Cargando datos...</p>
-      ) : (
-        <table border="1" cellPadding="10" style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Nombre</th>
-              <th>Precio</th>
-              <th>Stock</th>
-              <th>Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            {productos.length === 0 ? (
-              <tr><td colSpan="5">No hay productos registrados.</td></tr>
-            ) : (
-              productos.map((p) => (
-                <tr key={p.id}>
-                  <td>{p.id}</td>
-                  <td>{p.nombre}</td>
-                  <td>S/. {p.precio}</td>
-                  <td>{p.stock}</td>
-                  <td>
-                    <button onClick={() => handleEdit(p)} style={{ marginRight: '5px' }}>✏️ Editar</button>
-                    <button onClick={() => handleDelete(p.id)} style={{ color: 'red' }}>🗑️ Eliminar</button>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      )}
+      {loading && <div className="loader"></div>}
+
+      <table border="1" cellPadding="10" style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Nombre</th>
+            <th>Precio</th>
+            <th>Stock</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          {productos.length === 0 ? (
+            <tr><td colSpan="5">No hay productos registrados.</td></tr>
+          ) : (
+            productos.map((p) => (
+              <tr key={p.id}>
+                <td>{p.id}</td>
+                <td>{p.nombre}</td>
+                <td>S/. {p.precio}</td>
+                <td>{p.stock}</td>
+                <td>
+                  <button onClick={() => handleEdit(p)} style={{ marginRight: '5px' }}>✏️ Editar</button>
+                  <button onClick={() => handleDelete(p.id)} style={{ color: 'red' }}>🗑️ Eliminar</button>
+                </td>
+              </tr>
+            ))
+          )}
+        </tbody>
+      </table>
     </div>
   )
 }
